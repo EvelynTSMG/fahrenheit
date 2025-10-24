@@ -2,6 +2,30 @@
 
 namespace Fahrenheit.Core.FFX;
 
+public enum DamageFormula : byte {
+    StrVsDef               = 0x1,
+    StrIgnoreDef           = 0x2,
+    MagVsMDef              = 0x3,
+    MagIgnoreMDef          = 0x4,
+    CurrentDiv16           = 0x5,
+    Multiple50             = 0x6,
+    Healing                = 0x7,
+    MaxDiv16               = 0x8,
+    Multiple50WithVariance = 0x9,
+    TargetMaxMpDiv16       = 0xa,
+    TargetMaxCtbDiv16      = 0xb,
+    TargetMpDiv16          = 0xc,
+    TargetCtbDiv16         = 0xd,
+    MagSpecial             = 0xf,
+    UserMaxHpDiv10         = 0x10,
+    CelestialHighHp        = 0x11,
+    CelestialHighMp        = 0x12,
+    CelestialLowHp         = 0x13,
+    ChosenGilDiv10         = 0x15,
+    TargetKills            = 0x16,
+    Multiple9999           = 0x17,
+}
+
 [InlineArray(4)]
 public struct EquipmentAbilityArray {
     private ushort _u;
@@ -16,7 +40,7 @@ public struct Equipment {
     public byte                  type;
     public byte                  equipped_by;
     public byte                  __0x7;
-    public byte                  dmg_formula;
+    public DamageFormula         dmg_formula;
     public byte                  power;
     public byte                  crit_bonus;
     public byte                  slot_count;
@@ -37,7 +61,7 @@ public struct UnownedEquipment {
     public byte                  owner;
     public byte                  type;
     public byte                  __0x3;
-    public byte                  dmg_formula;
+    public DamageFormula         dmg_formula;
     public byte                  power;
     public byte                  crit_bonus;
     public byte                  slot_count;
