@@ -87,8 +87,15 @@ public abstract class FhModule {
     ///     <br/> - you receive a copy of the containing mod's <see cref="FhModContext"/>;
     ///     <br/> - you receive a <see cref="FileStream"/> of the global state file for your module;
     /// </summary>
-    /// <returns>Whether initialization succeeded. If <see cref="false"/>, an error is shown to the user, but execution continues.</returns>
+    /// <returns>Whether initialization succeeded. If <c>false</c>, an error is shown to the user, but execution continues.</returns>
     public abstract bool init(FhModContext mod_context, FileStream global_state_file);
+
+    /// <summary>
+    /// Your module should subscribe to all events provided by Fahrenheit here.
+    /// Subscribing anywhere else is unsafe and <b>not supported</b>.
+    /// Unsubscribing anywhere is unsafe and <b>not supported</b>.
+    /// </summary>
+    public virtual void subscribe() { }
 
     /// <summary>
     ///     Called when the game saves, allowing the module to save state specific to that save game.

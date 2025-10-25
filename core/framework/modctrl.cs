@@ -58,6 +58,8 @@ public sealed class FhModController {
                     continue;
                 }
 
+                fm.subscribe();
+
                 FhInternal.Log.Info($"Initialized module {fm.ModuleType}.");
             }
         }

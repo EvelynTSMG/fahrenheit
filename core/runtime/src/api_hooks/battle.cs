@@ -2,10 +2,13 @@
 
 using Fahrenheit.Core.FFX;
 using Fahrenheit.Core.FFX.Battle;
+using Fahrenheit.Core.FFX.Events;
 using Fahrenheit.Core.FFX.Events.Battle;
 using Fahrenheit.Core.FFX.Ids;
 
 namespace Fahrenheit.Core.Runtime;
+
+using DmgEventArgs = FhXEventsBattleDamageCalc.DamageCalcEventArgs;
 
 //TODO: Think of a more appropriate name for this
 [FhLoad(FhGameType.FFX)]
@@ -39,11 +42,6 @@ public unsafe class FhBattleAPIs : FhModule {
 
     private readonly brnd _brnd = FhUtil.get_fptr<brnd>(FhCall.__addr_brnd);
 
-    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-    private delegate Command* MsGetRomPlyCommand(int id, byte* out_text);
-
-    private readonly MsGetRomPlyCommand _MsGetRomPlyCommand = FhUtil.get_fptr<MsGetRomPlyCommand>(FhCall.__addr_MsGetRomPlyCommand);
-
     // Method Handles
     private FhMethodHandle<MsCalcDamageCommand> _mh_MsCalcDamageCommand = null!;
 
@@ -71,10 +69,13 @@ public unsafe class FhBattleAPIs : FhModule {
         int damage
     ) {
         // Convert parameters to more accurate types
-        DamageFormula damage_formula = (DamageFormula)_damage_formula;
+        var damage_formula = (DamageFormula)_damage_formula;
         bool should_vary = _should_vary != 0;
 
-        DamageCalc.DamageCalcEventArgs args1 = new() {
+        // Shorthand for method calls
+        FhXEventsBattleDamageCalc dmg_calc = FhXEvents.battle.damage_calc;
+
+        DmgEventArgs e = new() {
             user = user,
             target = target,
             command = command,
@@ -84,185 +85,174 @@ public unsafe class FhBattleAPIs : FhModule {
             should_vary = should_vary,
             target_stat = target_stat,
             target_status__0x606 = target_status__0x606,
+            defense = target->defense,
+            magic_defense = target->magic_defense,
+            current_stat = target_stat switch {
+                1 => target->current_hp,
+                2 => target->current_mp,
+                4 => target->current_ctb,
+                _ => 0,
+            },
+            max_stat = target_stat switch {
+                1 => target->max_hp,
+                2 => target->max_mp,
+                3 => target->max_ctb,
+                _ => 0,
+            },
+            variance = 256,
         };
 
         int chr_rng_idx = _MsGetRndChr(user->id, 0);
 
-        byte defense = target->defense;
-        byte magic_defense = target->magic_defense;
-
-        int current_stat = target_stat switch {
-            1 => target->current_hp,
-            2 => target->current_mp,
-            4 => target->current_ctb,
-            _ => 0,
-        };
-
-        int max_stat = target_stat switch {
-            1 => target->max_hp,
-            2 => target->max_mp,
-            3 => target->max_ctb,
-            _ => 0,
-        };
-
-        DamageCalc.DamageCalcEventArgs2 args2 = DamageCalc.DamageCalcEventArgs2.upgrade(args1);
-        args2.defense = defense;
-        args2.magic_defense = magic_defense;
-        args2.current_stat = current_stat;
-        args2.max_stat = max_stat;
-
-        DamageCalc.Invoke_PreApplyDefenseBreak(this, args2);
+        dmg_calc.Invoke_PreApplyDefenseBreak(this, e);
 
         if (command is not null && command->damages_hp) {
             // Armor Break
-            if (args2.target_status__0x606.get_bit(6)) {
-                if (DamageCalc.IsNull_OnApplyArmorBreak()) {
-                    args2.defense = 0;
+            if (e.target_status__0x606.get_bit(6)) {
+                if (dmg_calc.IsNull_OnApplyArmorBreak()) {
+                    e.defense = 0;
                 } else {
-                    DamageCalc.Invoke_OnApplyArmorBreak(this, args2);
+                    dmg_calc.Invoke_OnApplyArmorBreak(this, e);
                 }
             }
 
             // Mental Break
-            if (args2.target_status__0x606.get_bit(7)) {
-                if (DamageCalc.IsNull_OnApplyMentalBreak()) {
-                    args2.magic_defense = 0;
+            if (e.target_status__0x606.get_bit(7)) {
+                if (dmg_calc.IsNull_OnApplyMentalBreak()) {
+                    e.magic_defense = 0;
                 } else {
-                    DamageCalc.Invoke_OnApplyMentalBreak(this, args2);
+                    dmg_calc.Invoke_OnApplyMentalBreak(this, e);
                 }
             }
         }
 
-        DamageCalc.Invoke_PostApplyDefenseBreak(this, args2);
-
-        DamageCalc.DamageCalcEventArgs3 args3 = DamageCalc.DamageCalcEventArgs3.upgrade(args2);
-        args3.variance = 256;
+        dmg_calc.Invoke_PostApplyDefenseBreak(this, e);
 
         if (should_vary) {
-            if (DamageCalc.IsNull_OnGetVariance()) {
+            if (dmg_calc.IsNull_OnGetVariance()) {
                 int variance_rng = _brnd(chr_rng_idx);
-                args3.variance = (variance_rng & 31) + 240;
+                e.variance = (variance_rng & 31) + 240;
             } else {
-                DamageCalc.Invoke_OnGetVariance(this, args3);
+                dmg_calc.Invoke_OnGetVariance(this, e);
             }
         }
 
-        DamageCalc.Invoke_PostGetVariance(this, args3);
+        dmg_calc.Invoke_PostGetVariance(this, e);
 
         // Keeping all the integer division here makes this difficult to write more clearly
         // Maybe I'm being a bit overly careful when it comes to keeping all the base game rounding and it could've been simpler,
         // but I'm not going to test all that to make sure
-        switch (args3.damage_formula) {
+        switch (e.damage_formula) {
             case DamageFormula.StrVsDef: {
                 int str = user->strength + user->cheer_stacks;
-                int dr = (args3.defense * 51 - (args3.defense * args3.defense) / 11) / 10;
+                int dr = (e.defense * 51 - (e.defense * e.defense) / 11) / 10;
                 int dmg = str * str * str / 32 + 30;
                 dmg = (730 - dr) * dmg / 730;
                 dmg *= (15 - target->cheer_stacks) / 15;
-                dmg = dmg * args3.power / 16;
-                dmg = dmg * args3.variance / 256;
-                args3.damage = dmg;
+                dmg = dmg * e.power / 16;
+                dmg = dmg * e.variance / 256;
+                e.damage = dmg;
                 break;
             }
 
             case DamageFormula.StrIgnoreDef: {
                 int str = user->strength + user->cheer_stacks;
                 int dmg = str * str * str / 32 + 30;
-                dmg = dmg * args3.power / 16;
-                dmg = dmg * args3.variance / 256;
-                args3.damage = dmg;
+                dmg = dmg * e.power / 16;
+                dmg = dmg * e.variance / 256;
+                e.damage = dmg;
                 break;
             }
 
             case DamageFormula.MagVsMDef: {
                 int mag = user->magic + user->focus_stacks;
-                int dr = (args3.magic_defense * 51 - (args3.magic_defense * args3.magic_defense) / 11) / 10;
-                int dmg = ((mag * mag / 6) + args3.power) * args3.power;
+                int dr = (e.magic_defense * 51 - (e.magic_defense * e.magic_defense) / 11) / 10;
+                int dmg = ((mag * mag / 6) + e.power) * e.power;
                 dmg = ((730 - dr) * dmg / 4) / 730;
                 dmg *= (15 - target->focus_stacks) / 15;
-                dmg = dmg * args3.variance / 256;
-                args3.damage = dmg;
+                dmg = dmg * e.variance / 256;
+                e.damage = dmg;
                 break;
             }
 
             case DamageFormula.MagIgnoreMDef: {
                 int mag = user->magic + user->focus_stacks;
-                int dmg = ((mag * mag / 6) + args3.power) * args3.power;
+                int dmg = ((mag * mag / 6) + e.power) * e.power;
                 dmg /= 4;
-                dmg = dmg * args3.variance / 256;
-                args3.damage = dmg;
+                dmg = dmg * e.variance / 256;
+                e.damage = dmg;
                 break;
             }
 
             case DamageFormula.CurrentDiv16: {
-                args3.damage = current_stat * args3.power / 16;
+                e.damage = e.current_stat * e.power / 16;
                 break;
             }
 
             case DamageFormula.Multiple50: {
-                args3.damage = 50 * args3.power;
+                e.damage = 50 * e.power;
                 break;
             }
 
             case DamageFormula.Healing: {
                 int mag = user->magic + user->focus_stacks;
-                int dmg = (mag + args3.power) / 2 * power;
-                dmg = dmg * args3.variance / 256;
-                args3.damage = dmg;
+                int dmg = (mag + e.power) / 2 * power;
+                dmg = dmg * e.variance / 256;
+                e.damage = dmg;
                 break;
             }
 
             case DamageFormula.MaxDiv16: {
-                args3.damage = max_stat * args3.power / 16;
+                e.damage = e.max_stat * e.power / 16;
                 break;
             }
 
             case DamageFormula.Multiple50WithVariance: {
-                int dmg = 50 * args3.power;
-                dmg = dmg * args3.variance / 256;
-                args3.damage = dmg;
+                int dmg = 50 * e.power;
+                dmg = dmg * e.variance / 256;
+                e.damage = dmg;
                 break;
             }
 
             case DamageFormula.TargetMaxMpDiv16: {
-                args3.damage = target->max_mp * args3.power / 16;
+                e.damage = target->max_mp * e.power / 16;
                 break;
             }
 
             case DamageFormula.TargetMaxCtbDiv16: {
-                args3.damage = target->max_ctb * args3.power / 16;
+                e.damage = target->max_ctb * e.power / 16;
                 break;
             }
 
             case DamageFormula.TargetMpDiv16: {
-                args3.damage = target->current_mp * args3.power / 16;
+                e.damage = target->current_mp * e.power / 16;
                 break;
             }
 
             case DamageFormula.TargetCtbDiv16: {
-                args3.damage = target->current_ctb * args3.power / 16;
+                e.damage = target->current_ctb * e.power / 16;
                 break;
             }
 
             case (DamageFormula)0x0E: {
                 int str = user->strength;
                 int dmg = (str * str * str) / 32 + 30;
-                dmg = dmg * args3.power / 16;
-                args3.damage = dmg;
-                return args3.damage;
+                dmg = dmg * e.power / 16;
+                e.damage = dmg;
+                return e.damage;
             }
 
             case DamageFormula.MagSpecial: {
                 int mag = user->magic + user->focus_stacks;
                 int dmg = (mag * mag * mag) / 32 + 30;
-                dmg = dmg * args3.power / 16;
-                dmg = dmg * args3.variance / 256;
-                args3.damage = dmg;
+                dmg = dmg * e.power / 16;
+                dmg = dmg * e.variance / 256;
+                e.damage = dmg;
                 break;
             }
 
             case DamageFormula.UserMaxHpDiv10: {
-                args3.damage = user->max_hp * args3.power / 10;
+                e.damage = user->max_hp * e.power / 10;
                 break;
             }
 
@@ -271,9 +261,9 @@ public unsafe class FhBattleAPIs : FhModule {
                 int celestial_factor = (user->hp * 100) / user->max_hp + 10;
                 int dmg = (str * str * str / 32) + 30;
                 dmg = celestial_factor * dmg / 110;
-                dmg = dmg * args3.power / 16;
-                dmg = dmg * args3.variance / 256;
-                args3.damage = dmg;
+                dmg = dmg * e.power / 16;
+                dmg = dmg * e.variance / 256;
+                e.damage = dmg;
                 break;
             }
 
@@ -282,9 +272,9 @@ public unsafe class FhBattleAPIs : FhModule {
                 int celestial_factor = (user->mp * 100) / user->max_mp + 10;
                 int dmg = (str * str * str / 32) + 30;
                 dmg = celestial_factor * dmg / 110;
-                dmg = dmg * args3.power / 16;
-                dmg = dmg * args3.variance / 256;
-                args3.damage = dmg;
+                dmg = dmg * e.power / 16;
+                dmg = dmg * e.variance / 256;
+                e.damage = dmg;
                 break;
             }
 
@@ -293,9 +283,9 @@ public unsafe class FhBattleAPIs : FhModule {
                 int celestial_factor = 130 - (user->hp * 100) / user->max_hp;
                 int dmg = (str * str * str / 32) + 30;
                 dmg = celestial_factor * dmg / 60;
-                dmg = dmg * args3.power / 16;
-                dmg = dmg * args3.variance / 256;
-                args3.damage = dmg;
+                dmg = dmg * e.power / 16;
+                dmg = dmg * e.variance / 256;
+                e.damage = dmg;
                 break;
             }
 
@@ -303,45 +293,45 @@ public unsafe class FhBattleAPIs : FhModule {
                 int mag = user->magic;
                 int dmg = (mag * mag * mag) / 32 + 30;
                 dmg = dmg * power / 16;
-                args3.damage = dmg;
-                return args3.damage;
+                e.damage = dmg;
+                return e.damage;
             }
 
             case DamageFormula.ChosenGilDiv10: {
-                args3.damage = (int)Globals.Battle.btl->chosen_gil / 10;
+                e.damage = (int)Globals.Battle.btl->chosen_gil / 10;
                 break;
             }
 
             case DamageFormula.TargetKills: {
                 if (user->id < 0x12) {
-                    args3.damage = (int)Globals.save_data->ply_arr[user->id].enemies_defeated * power;
+                    e.damage = (int)Globals.save_data->ply_arr[user->id].enemies_defeated * power;
                 }
 
                 break;
             }
 
             case DamageFormula.Multiple9999: {
-                args3.damage = 9999 * power;
+                e.damage = 9999 * power;
                 break;
             }
         }
 
-        DamageCalc.Invoke_PostCalcDamage(this, args3);
+        dmg_calc.Invoke_PostCalcDamage(this, e);
 
         // Command is healing and target isn't Zombied
         if (command is not null && command->is_heal && !target_status__0x606.get_bit(1)) {
-            args3.damage = -args3.damage;
-            DamageCalc.Invoke_PostApplyHealing(this, args3);
+            e.damage = -e.damage;
+            dmg_calc.Invoke_PostApplyHealing(this, e);
         }
 
         if (out_defense is not null) {
-            *out_defense = args3.defense;
+            *out_defense = e.defense;
         }
 
         if (out_magic_defense is not null) {
-            *out_magic_defense = args3.magic_defense;
+            *out_magic_defense = e.magic_defense;
         }
 
-        return args3.damage;
+        return e.damage;
     }
 }
