@@ -1,5 +1,7 @@
 ﻿// SPDX-License-Identifier: MIT
 
+using Fahrenheit.Core.FFX.Battle;
+
 namespace Fahrenheit.Core.FFX;
 
 [StructLayout(LayoutKind.Explicit, Pack = 4, Size = 0x4)]
@@ -32,12 +34,12 @@ public struct Command {
     [FieldOffset(0x20)] public  byte              flags_damage;
     [FieldOffset(0x21)] public  bool              steals_gil;
     [FieldOffset(0x22)] public  bool              has_party_preview;
-    [FieldOffset(0x23)] public  byte              flags_damage_class;
+    [FieldOffset(0x23)] public  DamageClass       flags_damage_class;
     [FieldOffset(0x24)] public  byte              ctb_rank;
     [FieldOffset(0x25)] public  byte              mp_cost;
     [FieldOffset(0x26)] public  byte              limit_cost;
     [FieldOffset(0x27)] public  byte              crit_bonus;
-    [FieldOffset(0x28)] public  byte              dmg_formula;
+    [FieldOffset(0x28)] public  DamageFormula     dmg_formula;
     [FieldOffset(0x29)] public  byte              accuracy;
     [FieldOffset(0x2A)] public  byte              power;
     [FieldOffset(0x2B)] public  byte              hit_count;
@@ -46,10 +48,10 @@ public struct Command {
     [FieldOffset(0x2E)] public  StatusMap         status_map;
     [FieldOffset(0x47)] public  StatusDurationMap status_duration_map;
     [FieldOffset(0x54)] public  StatusExtraFlags  flags_status_extra;
+    [FieldOffset(0x56)] public  byte              flags_buffs_stat;
     [FieldOffset(0x58)] public  byte              overdrive_category;
     [FieldOffset(0x59)] public  byte              buff_amount;
     [FieldOffset(0x5A)] public  byte              flags_buffs_mix;
-    [FieldOffset(0x56)] public  byte              flags_buffs_stat;
 
     public  bool is_top_level_in_menu { get { return flags_menu.get_bit(0); } set { flags_menu.set_bit (0, value); } }
     private bool _menu_f4             { get { return flags_menu.get_bit(3); } set { flags_menu.set_bit (3, value); } }
@@ -70,7 +72,7 @@ public struct Command {
     public  uint accuracy_formula         { readonly get { return flags_misc.get_bits( 3, 3); } set { flags_misc.set_bits( 3, 3, value); } }
     public  bool is_affected_by_darkness  { readonly get { return flags_misc.get_bit ( 6);    } set { flags_misc.set_bit ( 6,    value); } }
     public  bool is_affected_by_reflect   { readonly get { return flags_misc.get_bit ( 7);    } set { flags_misc.set_bit ( 7,    value); } }
-    public  bool absorbs_dmg              { readonly get { return flags_misc.get_bit ( 8);    } set { flags_misc.set_bit ( 8,    value); } }
+    public  bool is_draining              { readonly get { return flags_misc.get_bit ( 8);    } set { flags_misc.set_bit ( 8,    value); } }
     public  bool steals_item              { readonly get { return flags_misc.get_bit ( 9);    } set { flags_misc.set_bit ( 9,    value); } }
     public  bool is_in_use_menu           { readonly get { return flags_misc.get_bit (10);    } set { flags_misc.set_bit (10,    value); } }
     public  bool is_in_sub_menu           { readonly get { return flags_misc.get_bit (11);    } set { flags_misc.set_bit (11,    value); } }
@@ -93,20 +95,16 @@ public struct Command {
     private bool _anim_f5                 { readonly get { return flags_misc.get_bit (28);    } set { flags_misc.set_bit (28,    value); } }
     private bool _anim_f6                 { readonly get { return flags_misc.get_bit (29);    } set { flags_misc.set_bit (29,    value); } }
     private bool _anim_f7                 { readonly get { return flags_misc.get_bit (30);    } set { flags_misc.set_bit (30,    value); } }
-    private bool _anim_f8                 { readonly get { return flags_misc.get_bit (31);    } set { flags_misc.set_bit (31,    value); } }
+    public  bool attempts_bribe           { readonly get { return flags_misc.get_bit (31);    } set { flags_misc.set_bit (31,    value); } }
 
-    public bool deals_physical_damage       { readonly get { return flags_damage.get_bit(0); } set { flags_damage.set_bit(0, value); } }
-    public bool deals_magical_damage        { readonly get { return flags_damage.get_bit(1); } set { flags_damage.set_bit(1, value); } }
-    public bool can_crit                    { readonly get { return flags_damage.get_bit(2); } set { flags_damage.set_bit(2, value); } }
-    public bool gives_crit_bonus            { readonly get { return flags_damage.get_bit(3); } set { flags_damage.set_bit(3, value); } }
-    public bool is_heal                     { readonly get { return flags_damage.get_bit(4); } set { flags_damage.set_bit(4, value); } }
-    public bool is_cleanse                  { readonly get { return flags_damage.get_bit(5); } set { flags_damage.set_bit(5, value); } }
-    public bool ignores_break_damage_limit  { readonly get { return flags_damage.get_bit(6); } set { flags_damage.set_bit(6, value); } }
-    public bool innate_break_damage_limit   { readonly get { return flags_damage.get_bit(7); } set { flags_damage.set_bit(7, value); } }
-
-    public bool damages_hp  { readonly get { return flags_damage_class.get_bit(0); } set { flags_damage_class.set_bit(0, value); } }
-    public bool damages_mp  { readonly get { return flags_damage_class.get_bit(1); } set { flags_damage_class.set_bit(1, value); } }
-    public bool damages_ctb { readonly get { return flags_damage_class.get_bit(2); } set { flags_damage_class.set_bit(2, value); } }
+    public bool deals_physical_damage       { readonly get { return  flags_damage.get_bit(0); } set { flags_damage.set_bit(0,  value); } }
+    public bool deals_magical_damage        { readonly get { return  flags_damage.get_bit(1); } set { flags_damage.set_bit(1,  value); } }
+    public bool can_crit                    { readonly get { return  flags_damage.get_bit(2); } set { flags_damage.set_bit(2,  value); } }
+    public bool gives_crit_bonus            { readonly get { return !flags_damage.get_bit(3); } set { flags_damage.set_bit(3, !value); } }
+    public bool is_heal                     { readonly get { return  flags_damage.get_bit(4); } set { flags_damage.set_bit(4,  value); } }
+    public bool is_cleanse                  { readonly get { return  flags_damage.get_bit(5); } set { flags_damage.set_bit(5,  value); } }
+    public bool ignores_break_damage_limit  { readonly get { return  flags_damage.get_bit(6); } set { flags_damage.set_bit(6,  value); } }
+    public bool innate_break_damage_limit   { readonly get { return  flags_damage.get_bit(7); } set { flags_damage.set_bit(7,  value); } }
 
     public bool inflicts_cheer  { readonly get { return flags_buffs_stat.get_bit(0); } set { flags_buffs_stat.set_bit(0, value); } }
     public bool inflicts_aim    { readonly get { return flags_buffs_stat.get_bit(1); } set { flags_buffs_stat.set_bit(1, value); } }

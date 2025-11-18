@@ -20,7 +20,7 @@ public partial struct AutoAbility {
     [FieldOffset(0x55)] public byte                  stat_inc_amount;
     [FieldOffset(0x56)] public StatIncreaseFlags     stat_inc_flags;
     [FieldOffset(0x58)] public StatusPermanentFlags  status_auto_permanent;
-    [FieldOffset(0x5A)] public StatusTemporalFlags   status_auto_temporal;
+    [FieldOffset(0x5A)] public StatusTemporaryFlags   status_auto_temporary;
     [FieldOffset(0x5C)] public StatusExtraFlags      status_auto_extra;
     [FieldOffset(0x5E)] public StatusExtraFlags      status_inflict_extra;
     [FieldOffset(0x60)] public StatusExtraFlags      status_resist_extra;
@@ -67,4 +67,12 @@ public static partial class FhEnumExt {
     public static bool defense_bonus      (this StatIncreaseFlags flags) => flags.HasFlag(StatIncreaseFlags.DEFENSE_BONUS);
     public static bool magic_bonus        (this StatIncreaseFlags flags) => flags.HasFlag(StatIncreaseFlags.MAGIC_BONUS);
     public static bool magic_defense_bonus(this StatIncreaseFlags flags) => flags.HasFlag(StatIncreaseFlags.MAGIC_DEFENSE_BONUS);
+}
+
+[StructLayout(LayoutKind.Sequential, Size = 0x4)]
+public struct StatBoostData {
+    public byte strength;
+    public byte magic;
+    public byte defense;
+    public byte magic_defense;
 }

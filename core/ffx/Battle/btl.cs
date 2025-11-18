@@ -90,6 +90,8 @@ public struct BtlDebugFlags {
     [FieldOffset(0x8)] public bool no_magic_effects;
     [FieldOffset(0x9)] public bool no_mp_cost;
 
+    [FieldOffset(0xE)] public bool never_inflict_status;
+
     [FieldOffset(0x10)] public bool no_variance;
     [FieldOffset(0x11)] public bool never_crit;
     [FieldOffset(0x12)] public bool always_hit;
@@ -111,6 +113,11 @@ public struct BtlDebugFlags {
 
 [StructLayout(LayoutKind.Explicit, Pack = 4, Size = 0x2150)]
 public unsafe struct Btl {
+    [InlineArray(62)]
+    public struct AttackInfoQueue {
+        private AttackInfo _data;
+    }
+
     [FieldOffset(0x10)]   public       byte   battle_state;
     [FieldOffset(0x12)]   public       byte   battle_trigger;
 
@@ -159,6 +166,10 @@ public unsafe struct Btl {
     [FieldOffset(0x124)]  public       uint   ptr_btl_bin_cur_encounter;
     [FieldOffset(0x128)]  public       uint   ptr_btl_bin_cur_group;
     [FieldOffset(0x12C)]  public       uint   ptr_btl_bin_cur_formation;
+
+    [FieldOffset(0x3A0)]  public       AttackInfoQueue attack_queue;
+    [FieldOffset(0x1511)] public       byte attack_queue_size;
+
     [FieldOffset(0x15C0)] public       uint   chosen_gil;
     [FieldOffset(0x1984)] public       ushort battlefield_id;
     [FieldOffset(0x1986)] public       ushort field_idx;

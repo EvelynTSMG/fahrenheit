@@ -2,8 +2,49 @@
 
 namespace Fahrenheit.Core.FFX.Battle;
 
+[StructLayout(LayoutKind.Sequential, Pack = 1, Size = 0x6)]
+public struct StatUpStacks {
+    public byte cheer;
+    public byte aim;
+    public byte focus;
+    public byte reflex;
+    public byte luck;
+    public byte jinx;
+
+    public byte this[int i] {
+        get {
+            return i switch {
+                0 => cheer,
+                1 => aim,
+                2 => focus,
+                3 => reflex,
+                4 => luck,
+                5 => jinx,
+                _ => throw new IndexOutOfRangeException($"Index {i} does not exist in StatUpStacks"),
+            };
+        }
+
+        set {
+            _ = i switch {
+                0 => cheer = value,
+                1 => aim = value,
+                2 => focus = value,
+                3 => reflex = value,
+                4 => luck = value,
+                5 => jinx = value,
+                _ => throw new IndexOutOfRangeException($"Index {i} does not exist in StatUpStacks"),
+            };
+        }
+    }
+}
+
 [StructLayout(LayoutKind.Explicit, Pack = 4, Size = 0xF90)]
 public unsafe struct Chr {
+    [InlineArray(40)]
+    public struct NameByteArray {
+        private byte _data;
+    }
+
     [FieldOffset(0x0)]   public       Actor*                actor;
     [FieldOffset(0x4)]   public       uint                  model_id;
     [FieldOffset(0xC)]   public       ushort                id;
@@ -79,7 +120,7 @@ public unsafe struct Chr {
     [FieldOffset(0x50B)] public       byte                  stat_move_pos;
     [FieldOffset(0x50D)] public       byte                  stat_height_on;
     [FieldOffset(0x50E)] public       bool                  stat_sleep_recover_flag;
-    [FieldOffset(0x540)] public fixed byte                  name[40];
+    [FieldOffset(0x540)] public       NameByteArray         name;
     [FieldOffset(0x590)] public       byte                  gender;
     [FieldOffset(0x592)] public       byte                  wpn_inv_idx;
     [FieldOffset(0x593)] public       byte                  arm_inv_idx;
@@ -109,7 +150,7 @@ public unsafe struct Chr {
     [FieldOffset(0x5BB)] public       byte                  limit_mode_selected;
     [FieldOffset(0x5BC)] public       byte                  limit_charge;
     [FieldOffset(0x5BD)] public       byte                  limit_charge_max;
-    [FieldOffset(0x5C1)] public       byte                  wpn_dmg_formula;
+    [FieldOffset(0x5C1)] public       DamageFormula         wpn_dmg_formula;
     [FieldOffset(0x5C3)] public       byte                  stat_icon_number;
     [FieldOffset(0x5C4)] public       byte                  provoked_by_id;
     [FieldOffset(0x5C5)] public       byte                  threatened_by_id;
@@ -132,13 +173,13 @@ public unsafe struct Chr {
     [FieldOffset(0x608)] public       StatusDurationMap     status_suffer_turns_left;
     [FieldOffset(0x616)] public       StatusExtraFlags      status_suffer_extra;
     [FieldOffset(0x62A)] public       StatusPermanentFlags  status_auto_full_permanent;
-    [FieldOffset(0x62C)] public       StatusTemporalFlags   status_auto_full_temporal;
+    [FieldOffset(0x62C)] public       StatusTemporaryFlags  status_auto_full_temporary;
     [FieldOffset(0x62E)] public       StatusExtraFlags      status_auto_full_extra;
     [FieldOffset(0x630)] public       StatusPermanentFlags  status_auto_innate_permanent;
-    [FieldOffset(0x632)] public       StatusTemporalFlags   status_auto_innate_temporal;
+    [FieldOffset(0x632)] public       StatusTemporaryFlags  status_auto_innate_temporary;
     [FieldOffset(0x634)] public       StatusExtraFlags      status_auto_innate_extra;
     [FieldOffset(0x636)] public       StatusPermanentFlags  status_auto_sos_permanent;
-    [FieldOffset(0x638)] public       StatusTemporalFlags   status_auto_sos_temporal;
+    [FieldOffset(0x638)] public       StatusTemporaryFlags  status_auto_sos_temporary;
     [FieldOffset(0x63A)] public       StatusExtraFlags      status_auto_sos_extra;
     [FieldOffset(0x63D)] public       byte                  weak_level_full;
     [FieldOffset(0x63E)] public       byte                  weak_level_hp;
@@ -146,12 +187,16 @@ public unsafe struct Chr {
     [FieldOffset(0x65A)] public       StatusExtraFlags      status_resist_extra;
     [FieldOffset(0x65C)] public       byte                  ctb;
     [FieldOffset(0x65D)] public       byte                  max_ctb;
+
+                         // Dirty overlay to provide an indexer for a single function (`DmgCalc_ApplyStatBuffs`)
+    [FieldOffset(0x65E)] public       StatUpStacks          stat_up_stacks;
     [FieldOffset(0x65E)] public       byte                  cheer_stacks;
     [FieldOffset(0x65F)] public       byte                  aim_stacks;
     [FieldOffset(0x660)] public       byte                  focus_stacks;
     [FieldOffset(0x661)] public       byte                  reflex_stacks;
     [FieldOffset(0x662)] public       byte                  luck_stacks;
     [FieldOffset(0x663)] public       byte                  jinx_stacks;
+
     [FieldOffset(0x664)] public       AbilityMap            abilities;
     [FieldOffset(0x6BC)] public       AutoAbilityEffectsMap auto_ability_effects;
     [FieldOffset(0x6CE)] public       byte                  stat_use_mp0;
@@ -166,8 +211,14 @@ public unsafe struct Chr {
     [FieldOffset(0x6EC)] public       int                   current_ctb;
     [FieldOffset(0x700)] public       sbyte                 stat_death_status;
     [FieldOffset(0x704)] public       uint                  bribe_gil_spent;
+    [FieldOffset(0x708)] public       int                   bribe_score;
     [FieldOffset(0x718)] public       bool                  stat_limit_bar_flag;
     [FieldOffset(0x719)] public       byte                  stat_limit_bar_flag_cam;
+
+    // There's a small array of large structs that haven't yet been REd here, hence the offset gap
+
+    [FieldOffset(0xD2C)] public       float                 limit_time_complete;
+    [FieldOffset(0xD30)] public       float                 limit_time_initial;
     [FieldOffset(0xD34)] public       int                   damage_hp;
     [FieldOffset(0xD38)] public       int                   damage_mp;
     [FieldOffset(0xD3C)] public       int                   damage_ctb;
@@ -195,6 +246,7 @@ public unsafe struct Chr {
     [FieldOffset(0xE1A)] public       short                 stat_sound_hit_num;
     [FieldOffset(0xF74)] public       byte                  stat_info_mes_id;
     [FieldOffset(0xF75)] public       byte                  stat_live_mes_id;
+
     [FieldOffset(0xF78)] public       nint                  ptr_script_chunks;
     [FieldOffset(0xF7C)] public       nint                  ptr_script_data;
     [FieldOffset(0xF80)] public       nint                  ptr_base_stats;
@@ -210,12 +262,15 @@ public unsafe struct Chr {
     public bool is_aeon   { readonly get { return gender.get_bit(2); } set { gender.set_bit(2, value); } }
 
     // Extra Resistances (Properties)
-    public bool is_armored           { readonly get { return extra_resist.get_bit(0); } set { extra_resist.set_bit(0, value); } }
-    public bool ignores_gravity_dmg  { readonly get { return extra_resist.get_bit(1); } set { extra_resist.set_bit(1, value); } }
-    public bool ignores_physical_dmg { readonly get { return extra_resist.get_bit(2); } set { extra_resist.set_bit(2, value); } }
-    public bool ignores_magical_dmg  { readonly get { return extra_resist.get_bit(3); } set { extra_resist.set_bit(3, value); } }
-    public bool is_invincible        { readonly get { return extra_resist.get_bit(4); } set { extra_resist.set_bit(4, value); } }
-    public bool ignores_ctb_dmg      { readonly get { return extra_resist.get_bit(5); } set { extra_resist.set_bit(5, value); } }
-    public bool ignores_zanmato      { readonly get { return extra_resist.get_bit(6); } set { extra_resist.set_bit(6, value); } }
-    public bool ignores_bribe        { readonly get { return extra_resist.get_bit(7); } set { extra_resist.set_bit(7, value); } }
+    public bool is_armored          { readonly get { return extra_resist.get_bit(0); } set { extra_resist.set_bit(0, value); } }
+    public bool immune_gravity_dmg  { readonly get { return extra_resist.get_bit(1); } set { extra_resist.set_bit(1, value); } }
+    public bool immune_life         { readonly get { return extra_resist.get_bit(2); } set { extra_resist.set_bit(2, value); } }
+    public bool immune_sensor       { readonly get { return extra_resist.get_bit(3); } set { extra_resist.set_bit(3, value); } }
+    public bool immune_scan2        { readonly get { return extra_resist.get_bit(4); } set { extra_resist.set_bit(4, value); } }
+    public bool immune_physical_dmg { readonly get { return extra_resist.get_bit(5); } set { extra_resist.set_bit(5, value); } }
+    public bool immune_magical_dmg  { readonly get { return extra_resist.get_bit(6); } set { extra_resist.set_bit(6, value); } }
+    public bool immune_all_dmg      { readonly get { return extra_resist.get_bit(7); } set { extra_resist.set_bit(7, value); } }
+    public bool immune_ctb_damage   { readonly get { return extra_resist.get_bit(8); } set { extra_resist.set_bit(8, value); } }
+    public bool immune_zanmato      { readonly get { return extra_resist.get_bit(9); } set { extra_resist.set_bit(9, value); } }
+    public bool immune_bribe        { readonly get { return extra_resist.get_bit(10); } set { extra_resist.set_bit(10, value); } }
 }

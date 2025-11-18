@@ -52,6 +52,14 @@ public unsafe static class Globals {
         public static byte* hit_chance_table => FhUtil.ptr_at<byte>(0x8421E0);
 
         public static EncounterLevel* encounter_level => FhUtil.ptr_at<EncounterLevel>(0xC421C8);
+
+        public static Span<StatBoostData> param_boost => new(FhUtil.ptr_at<StatBoostData>(0x1F11240), 31);
+
+        public static Span<StatusData> permanent_status_data => new(FhUtil.ptr_at<StatusData>(0x8423d8), 12);
+
+        public static Span<StatusData> temporary_status_data => new(FhUtil.ptr_at<StatusData>(0x842454), 13);
+
+        public static Span<StatusData> extra_status_data => new(FhUtil.ptr_at<StatusData>(0x842410), 16);
     }
 
     public static class OverdriveInfo {

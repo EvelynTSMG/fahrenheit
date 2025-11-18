@@ -7,6 +7,10 @@ public unsafe static class FhUtil {
     public static T  get_at<T>(nint address)          where T : unmanaged { return *ptr_at<T>(address);                }
     public static T  set_at<T>(nint address, T value) where T : unmanaged { return *ptr_at<T>(address) = value;        }
 
+    public static T* ptr_at<T>(void* base_ptr, nint offset) where T : unmanaged {
+        return (T*)((nint)base_ptr + offset);
+    }
+
     public static FhLangId get_lang_id() {
         string ini_path     = FhInternal.PathFinder.get_path_settings();
         string ini_lang_key = "Language=";
